@@ -1,0 +1,128 @@
+# Pixel-matched reconstruction of "Study Status Distribution"
+# Output: 1094 x 574 px PNG at 96 dpi
+
+library(grid)
+
+# Register the same TrueType face used by the Windows reference image.
+if (.Platform$OS.type == "windows") {
+  windowsFonts(Arial = windowsFont("Arial"))
+}
+
+status <- c(
+  "Completed", "Unknown status", "Open", "Withdrawn", "Terminated",
+  "Active, not recruiting", "Temporarily Closed", "Suspended", "Planned"
+)
+count <- c(72, 34, 11, 5, 4, 1, 1, 1, 1)
+
+# Colours sampled directly from the reference PNG.
+cols <- c(
+  "#FF0000", "#FFA300", "#B9FF00", "#16FF00", "#00FF8C",
+  "#00CFFF", "#002DFF", "#7600FF", "#FF00E6"
+)
+
+canvas_w <- 1094
+canvas_h <- 574
+dpi <- 96
+
+# Pixel geometry sampled from the reference image.
+cx <- 440
+cy <- 308.5
+outer_r <- 215.5 - (seq_along(count) - 1) * 19
+ring_width <- 14
+bg_col <- "#EEEEEE"
+
+# Draw an annular sector. Angles are measured clockwise from 12 o'clock.
+annular_sector <- function(cx, cy, r_outer, r_inner, fraction, fill,
+                           n_full_circle = 2880) {
+  n <- max(3L, ceiling(n_full_circle * fraction))
+  theta <- seq(-pi / 2, -pi / 2 + 2 * pi * fraction, length.out = n)
+
+  x <- c(cx + r_outer * cos(theta),
+         cx + r_inner * cos(rev(theta)))
+  y <- c(cy + r_outer * sin(theta),
+         cy + r_inner * sin(rev(theta)))
+
+  grid.polygon(
+    x = unit(x, "native"), y = unit(y, "native"),
+    gp = gpar(fill = fill, col = NA)
+  )
+}
+
+draw_figure <- function(output = "study_status_distribution_recreated.png") {
+  # type="windows" reproduces the reference's Windows/GDI rasterisation.
+  png(
+    filename = output,
+    width = canvas_w, height = canvas_h, units = "px", res = dpi,
+    bg = "white", type = "windows"
+  )
+  on.exit(dev.off(), add = TRUE)
+
+  grid.newpage()
+  pushViewport(viewport(
+    x = 0, y = 1, width = 1, height = 1,
+    just = c("left", "top"),
+    xscale = c(0, canvas_w), yscale = c(canvas_h, 0),
+    clip = "off"
+  ))
+
+  # Pale-grey full tracks.
+  for (i in seq_along(count)) {
+    annular_sector(cx, cy, outer_r[i], outer_r[i] - ring_width, 1, bg_col)
+  }
+
+  # Coloured progress arcs, starting at 12 o'clock and running clockwise.
+  for (i in seq_along(count)) {
+    annular_sector(
+      cx, cy, outer_r[i], outer_r[i] - ring_width,
+      count[i] / max(count), cols[i]
+    )
+  }
+
+  # The reference has a two-pixel white radial separator at 12 o'clock.
+  grid.lines(
+    x = unit(c(cx - 0.5, cx - 0.5), "native"),
+    y = unit(c(cy - outer_r[1] - 1, cy - (outer_r[length(outer_r)] - ring_width)), "native"),
+    gp = gpar(col = "white", lwd = 2, lineend = "butt")
+  )
+
+  # Title.
+  grid.text(
+    "Study Status Distribution",
+    x = unit(546, "native"), y = unit(15.5, "native"),
+    just = "centre",
+    gp = gpar(col = "#333333", fontfamily = "Arial", fontface = "bold", fontsize = 16.25)
+  )
+
+  # Legend: dimensions and spacing are fixed in pixels to match the reference.
+  key_top <- c(90, 121, 152, 182, 213, 244, 275, 306, 337)
+  key_h <- c(19, 19, 18, 19, 19, 19, 19, 19, 19)
+  label_y <- c(99, 130, 161, 192, 223, 254, 284, 315, 346)
+
+  for (i in seq_along(status)) {
+    grid.rect(
+      x = unit(691.5, "native"),
+      y = unit(key_top[i] + key_h[i] / 2, "native"),
+      width = unit(23, "native"), height = unit(key_h[i], "native"),
+      gp = gpar(fill = cols[i], col = NA)
+    )
+    grid.text(
+      sprintf("%s (n=%d)", status[i], count[i]),
+      x = unit(709, "native"), y = unit(label_y[i] - 1, "native"),
+      just = c("left", "centre"),
+      gp = gpar(col = "#333333", fontfamily = "Arial", fontsize = 7.5)
+    )
+  }
+
+  # Bottom caption.
+  grid.text(
+    "Color scale: spectral (rainbow), ordered by count (outermost = largest)",
+    x = unit(546, "native"), y = unit(557, "native"),
+    just = "centre",
+    gp = gpar(col = "#7F7F7F", fontfamily = "Arial", fontsize = 7)
+  )
+
+  popViewport()
+  invisible(normalizePath(output, winslash = "/", mustWork = FALSE))
+}
+
+draw_figure()
