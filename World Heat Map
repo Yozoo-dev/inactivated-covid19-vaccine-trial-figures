@@ -1,0 +1,94 @@
+library(tidyverse)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(RColorBrewer)
+library(ggrepel)
+
+#========================
+# 1. 数据
+#========================
+df <- data.frame(
+  country = c(
+    "China","Indonesia","Argentina","Chile","Colombia","India",
+    "Kazakhstan","Laos","Mexico","Pakistan","Peru","Philippines",
+    "Russia","Spain","Tunisia","Turkey","United Arab Emirates",
+    "United Kingdom","United States","Brazil"
+  ),
+  value = c(
+    73,8,1,1,2,3,1,1,1,2,1,2,4,1,1,8,4,1,2,7
+  )
+)
+
+#========================
+# 2. 世界地图数据
+#========================
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+#========================
+# 3. 合并数据
+#========================
+map_data <- world %>%
+  left_join(df, by = c("name" = "country"))
+
+map_data$value[is.na(map_data$value)] <- 0
+
+#========================
+# 4. 光谱色阶
+#========================
+spec_cols <- rev(colorRampPalette(
+  brewer.pal(11, "Spectral")
+)(100))
+
+#========================
+# 5. 关键国家标注（非零值）
+#========================
+label_data <- map_data %>%
+  filter(value > 0) %>%
+  st_centroid(of_largest_polygon = TRUE)
+
+#========================
+# 6. 世界热图
+#========================
+p <- ggplot(map_data) +
+
+  geom_sf(aes(fill = value), color = "grey60", linewidth = 0.2) +
+
+  scale_fill_gradientn(
+    colours = spec_cols,
+    name = "Number",
+    na.value = "white"
+  ) +
+
+  geom_sf_text(
+    data = label_data,
+    aes(label = ifelse(value >= 4, name, "")),
+    size = 3,
+    fontface = "bold",
+    color = "black"
+  ) +
+
+  labs(
+    title = "Global Distribution of Studies",
+    subtitle = "Country-wise study distribution",
+    caption = "Spectral color scale"
+  ) +
+
+  theme_minimal(base_size = 14) +
+
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      size = 18,
+      hjust = 0.5
+    ),
+    plot.subtitle = element_text(
+      hjust = 0.5
+    ),
+    legend.position = "right"
+  )
+
+#========================
+# 7. 显示图
+#========================
+p
